@@ -1,6 +1,6 @@
 # Variables
 $resourceGroup = "RG-Achyut"
-$location      = "EastUS"
+$location      = "EastAsia"
 $vmName        = "AchyutVM"
 $vmSize        = "Standard_B1s"
 $adminUser     = "azureuser"
