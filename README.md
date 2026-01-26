@@ -1,97 +1,121 @@
-Azure VM Creation & Cleanup using PowerShell
+☁️ Azure VM Automation using PowerShell
 
-This repository contains PowerShell scripts to create and delete an Azure Virtual Machine using the Az PowerShell module.
-It is designed for AZ-104 (Azure Administrator) practice and hands-on learning.
+🚀 Create & delete Azure Virtual Machines with one command
+Perfect for AZ-104, hands-on labs, and real-world automation practice.
 
-📁 Repository Structure
-.
-├── vm.ps1          # Script to create an Azure VM
-├── delete-vm.ps1   # Script to delete the Azure Resource Group
-├── README.md
-└── LICENSE
+📌 What is this repo?
 
-🚀 Prerequisites
+This repository provides PowerShell automation scripts to:
 
-Before running the scripts, make sure you have:
+✅ Create an Azure Linux VM
+✅ Automatically configure networking
+✅ Cleanly delete all resources (no leftover costs 💸)
 
-An active Azure subscription
+Designed for:
 
-Azure PowerShell (Az module) installed
+🧑‍🎓 AZ-104 learners
 
-Logged in to Azure:
+☁️ Cloud beginners
+
+⚙️ Automation practice
+
+📂 Repository Structure
+📁 azure-vm-powershell
+├── 🖥️ vm.ps1            # Create Azure VM
+├── 🗑️ delete-vm.ps1     # Delete all resources safely
+├── 📘 README.md
+└── 📄 LICENSE
+
+⚙️ Prerequisites
+
+Make sure you have:
+
+✅ Active Azure Subscription
+
+✅ Azure PowerShell (Az module)
+
+✅ Logged in to Azure
 
 Connect-AzAccount
 
 
-You can also run these scripts directly in Azure Cloud Shell (PowerShell mode).
+💡 Tip: These scripts work perfectly in Azure Cloud Shell (PowerShell mode).
 
-🖥️ Create Azure Virtual Machine
+🚀 Create Azure Virtual Machine
 
-The script vm.ps1 performs the following actions:
+The vm.ps1 script automatically creates:
 
-Creates a Resource Group
+🧱 Resource Group
+🌐 Virtual Network & Subnet
+🛡️ Network Security Group
+🔓 SSH access (Port 22)
+🖥️ Ubuntu 22.04 VM
+🌍 Public IP Address
 
-Creates a Virtual Network & Subnet
-
-Creates Network Security Group
-
-Opens SSH (Port 22)
-
-Creates a Linux VM (Ubuntu 22.04)
-
-Assigns a Public IP
-
-Run the script
+▶️ Run the script
 ./vm.ps1
 
-🗑️ Delete Azure Resources (Cleanup)
 
-To avoid unnecessary charges, delete all created resources using delete-vm.ps1.
+⏳ VM creation usually takes 2–5 minutes.
 
-This script deletes the entire Resource Group, including:
+🗑️ Delete Azure Resources (Highly Recommended)
 
-Virtual Machine
+Avoid unexpected Azure charges 💸
+Use delete-vm.ps1 to delete EVERYTHING safely.
 
-OS Disk
+❌ What gets deleted?
 
-Network Interface
+🖥️ Virtual Machine
 
-Public IP
+💾 OS Disk
 
-NSG
+🔌 Network Interface
 
-Virtual Network
+🌍 Public IP
 
-Run the cleanup script
+🛡️ NSG
+
+🌐 VNet
+
+▶️ Run cleanup script
 ./delete-vm.ps1
 
 
-⚠️ Warning: This action is permanent and cannot be undone.
+⚠️ Warning: This action is permanent.
 
-🧠 Notes for AZ-104 Exam
+🧠 AZ-104 Exam Tips
 
-New-AzVM is a high-level cmdlet that can auto-create networking resources
+📌 New-AzVM is a high-level cmdlet
+📌 Azure auto-creates networking if not provided
+📌 Best way to remove a VM? → Delete the Resource Group
+📌 PowerShell scripts always use .ps1
 
-Deleting a Resource Group is the safest way to remove all associated resources
+🐧 Platform Support
 
-PowerShell scripts use the .ps1 file extension
+✔ Windows PowerShell
+✔ PowerShell Core (Linux/macOS)
+✔ Azure Cloud Shell
 
-🐧 Cross-Platform Support
+🎯 Why use this repo?
 
-These scripts work on:
-
-Windows PowerShell
-
-PowerShell Core on Linux/macOS
-
-Azure Cloud Shell
-
-📌 Disclaimer
-
-This repository is for learning and practice purposes only.
-Always monitor your Azure resources to avoid unexpected costs.
+✨ Beginner-friendly
+✨ Real AZ-104 aligned tasks
+✨ Clean resource cleanup
+✨ Industry-relevant automation
 
 👤 Author
 
 Achyut Hadavani
-Azure | Linux | Cloud & DevOps Enthusiast
+☁️ Cloud | 🐧 Linux | ⚙️ DevOps Enthusiast
+
+🔗 Learning Azure the practical way.
+
+⭐ Like this repo?
+
+If this helped you:
+
+⭐ Star the repository
+
+🍴 Fork it
+
+📢 Share with AZ-104 learners
