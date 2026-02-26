@@ -1,36 +1,48 @@
-# LOGIN (Linux safe)
+# =====================================================
+# Azure VM + Website Deployment (Student Subscription)
+# Trusted Launch ENABLED
+# =====================================================
+
+# LOGIN (Linux PowerShell compatible)
 Connect-AzAccount -UseDeviceAuthentication
 
-# VARIABLES
+# ---------------- VARIABLES ----------------
 $rg = "Symbiosis-RG"
 $location = "centralindia"
-$vnetName = "symbiosis-vnet"
-$subnetName = "symbiosis-subnet"
-$nsgName = "symbiosis-nsg"
-$ipName = "symbiosis-ip"
-$nicName = "symbiosis-nic"
-$vmName = "symbiosis-vm"
 
-# RESOURCE GROUP
+$vnetName   = "symbiosis-vnet"
+$subnetName = "symbiosis-subnet"
+$nsgName    = "symbiosis-nsg"
+$ipName     = "symbiosis-ip"
+$nicName    = "symbiosis-nic"
+$vmName     = "symbiosis-vm"
+
+# ---------------- RESOURCE GROUP ----------------
 if (-not (Get-AzResourceGroup -Name $rg -ErrorAction SilentlyContinue)) {
     New-AzResourceGroup -Name $rg -Location $location
 }
 
-# VNET + SUBNET (DO NOT OVERWRITE)
+# ---------------- VNET & SUBNET ----------------
 $vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+
 if (-not $vnet) {
-    $subnet = New-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix "10.0.1.0/24"
+    $subnetConfig = New-AzVirtualNetworkSubnetConfig `
+        -Name $subnetName `
+        -AddressPrefix "10.0.1.0/24"
+
     $vnet = New-AzVirtualNetwork `
         -Name $vnetName `
         -ResourceGroupName $rg `
         -Location $location `
         -AddressPrefix "10.0.0.0/16" `
-        -Subnet $subnet
+        -Subnet $subnetConfig
 }
-$subnet = $vnet.Subnets | Where-Object {$_.Name -eq $subnetName}
 
-# NSG + HTTP RULE
+$subnet = $vnet.Subnets | Where-Object { $_.Name -eq $subnetName }
+
+# ---------------- NSG (ALLOW HTTP) ----------------
 $nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+
 if (-not $nsg) {
     $rule = New-AzNetworkSecurityRuleConfig `
         -Name "Allow-HTTP" `
@@ -50,18 +62,21 @@ if (-not $nsg) {
         -SecurityRules $rule
 }
 
-# PUBLIC IP
+# ---------------- PUBLIC IP ----------------
 $publicIp = Get-AzPublicIpAddress -Name $ipName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+
 if (-not $publicIp) {
     $publicIp = New-AzPublicIpAddress `
         -Name $ipName `
         -ResourceGroupName $rg `
         -Location $location `
-        -AllocationMethod Static
+        -AllocationMethod Static `
+        -Sku Standard
 }
 
-# NIC
+# ---------------- NIC ----------------
 $nic = Get-AzNetworkInterface -Name $nicName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+
 if (-not $nic) {
     $nic = New-AzNetworkInterface `
         -Name $nicName `
@@ -72,13 +87,14 @@ if (-not $nic) {
         -NetworkSecurityGroupId $nsg.Id
 }
 
-# VM CREDENTIAL
+# ---------------- VM CREDENTIAL ----------------
 $cred = Get-Credential
 
-# VM CONFIG (NO securityType → avoids Trusted Launch error)
+# ---------------- VM CONFIG (Trusted Launch REQUIRED) ----------------
 $vmConfig = New-AzVMConfig `
     -VMName $vmName `
-    -VMSize "Standard_B1s"
+    -VMSize "Standard_B1s" `
+    -SecurityType "TrustedLaunch"
 
 $vmConfig = Set-AzVMOperatingSystem `
     -VM $vmConfig `
@@ -94,17 +110,23 @@ $vmConfig = Set-AzVMSourceImage `
     -Skus "22_04-lts" `
     -Version "latest"
 
+$vmConfig = Set-AzVMSecurityProfile `
+    -VM $vmConfig `
+    -SecurityType TrustedLaunch `
+    -EnableSecureBoot `
+    -EnableVtpm
+
 $vmConfig = Add-AzVMNetworkInterface `
     -VM $vmConfig `
     -Id $nic.Id
 
-# CREATE VM
+# ---------------- CREATE VM ----------------
 New-AzVM `
     -ResourceGroupName $rg `
     -Location $location `
     -VM $vmConfig
 
-# INSTALL WEBSITE
+# ---------------- INSTALL WEBSITE ----------------
 Invoke-AzVMRunCommand `
     -ResourceGroupName $rg `
     -VMName $vmName `
