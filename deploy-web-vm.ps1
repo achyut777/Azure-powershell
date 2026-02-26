@@ -1,14 +1,13 @@
 # =====================================================
-# Azure VM + Website Deployment (Student Subscription)
-# Trusted Launch ENABLED
+# Azure VM + Website Deployment (Azure for Students)
+# Trusted Launch + Gen2 Image (WORKING)
 # =====================================================
 
-# LOGIN (Linux PowerShell compatible)
 Connect-AzAccount -UseDeviceAuthentication
 
 # ---------------- VARIABLES ----------------
-$rg = "Symbiosis-RG"
-$location = "centralindia"
+$rg        = "Symbiosis-RG"
+$location  = "centralindia"
 
 $vnetName   = "symbiosis-vnet"
 $subnetName = "symbiosis-subnet"
@@ -40,7 +39,7 @@ if (-not $vnet) {
 
 $subnet = $vnet.Subnets | Where-Object { $_.Name -eq $subnetName }
 
-# ---------------- NSG (ALLOW HTTP) ----------------
+# ---------------- NSG ----------------
 $nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rg -ErrorAction SilentlyContinue
 
 if (-not $nsg) {
@@ -90,7 +89,7 @@ if (-not $nic) {
 # ---------------- VM CREDENTIAL ----------------
 $cred = Get-Credential
 
-# ---------------- VM CONFIG (Trusted Launch REQUIRED) ----------------
+# ---------------- VM CONFIG (Trusted Launch Gen2) ----------------
 $vmConfig = New-AzVMConfig `
     -VMName $vmName `
     -VMSize "Standard_B1s" `
@@ -103,18 +102,13 @@ $vmConfig = Set-AzVMOperatingSystem `
     -Credential $cred `
     -DisablePasswordAuthentication:$false
 
+# ✅ GEN2 IMAGE (VERY IMPORTANT)
 $vmConfig = Set-AzVMSourceImage `
     -VM $vmConfig `
     -PublisherName "Canonical" `
     -Offer "0001-com-ubuntu-server-jammy" `
-    -Skus "22_04-lts" `
+    -Skus "22_04-lts-gen2" `
     -Version "latest"
-
-$vmConfig = Set-AzVMSecurityProfile `
-    -VM $vmConfig `
-    -SecurityType TrustedLaunch `
-    -EnableSecureBoot `
-    -EnableVtpm
 
 $vmConfig = Add-AzVMNetworkInterface `
     -VM $vmConfig `
@@ -126,7 +120,7 @@ New-AzVM `
     -Location $location `
     -VM $vmConfig
 
-# ---------------- INSTALL WEBSITE ----------------
+# ---------------- DEPLOY WEBSITE ----------------
 Invoke-AzVMRunCommand `
     -ResourceGroupName $rg `
     -VMName $vmName `
