@@ -1,6 +1,6 @@
 # =====================================================
 # Azure VM + Website Deployment (Azure for Students)
-# Trusted Launch + Gen2 Image (WORKING)
+# Ubuntu 22.04 Gen2 + Trusted Launch
 # =====================================================
 
 Connect-AzAccount -UseDeviceAuthentication
@@ -39,11 +39,12 @@ if (-not $vnet) {
 
 $subnet = $vnet.Subnets | Where-Object { $_.Name -eq $subnetName }
 
-# ---------------- NSG ----------------
+# ---------------- NSG (Allow HTTP) ----------------
 $nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rg -ErrorAction SilentlyContinue
 
 if (-not $nsg) {
-    $rule = New-AzNetworkSecurityRuleConfig `
+
+    $ruleHTTP = New-AzNetworkSecurityRuleConfig `
         -Name "Allow-HTTP" `
         -Protocol Tcp `
         -Direction Inbound `
@@ -58,7 +59,7 @@ if (-not $nsg) {
         -ResourceGroupName $rg `
         -Location $location `
         -Name $nsgName `
-        -SecurityRules $rule
+        -SecurityRules $ruleHTTP
 }
 
 # ---------------- PUBLIC IP ----------------
@@ -89,7 +90,7 @@ if (-not $nic) {
 # ---------------- VM CREDENTIAL ----------------
 $cred = Get-Credential
 
-# ---------------- VM CONFIG (Trusted Launch Gen2) ----------------
+# ---------------- VM CONFIG ----------------
 $vmConfig = New-AzVMConfig `
     -VMName $vmName `
     -VMSize "Standard_B1s" `
@@ -102,7 +103,6 @@ $vmConfig = Set-AzVMOperatingSystem `
     -Credential $cred `
     -DisablePasswordAuthentication:$false
 
-# ✅ GEN2 IMAGE (VERY IMPORTANT)
 $vmConfig = Set-AzVMSourceImage `
     -VM $vmConfig `
     -PublisherName "Canonical" `
@@ -128,9 +128,29 @@ Invoke-AzVMRunCommand `
     -ScriptString @"
 sudo apt update -y
 sudo apt install apache2 git -y
+
+# Remove default Apache page
 sudo rm -rf /var/www/html/*
-sudo git clone https://github.com/Jani-shiv/Symbiosis-Heckathon.git /var/www/html
+
+# Clone GitHub repo
+sudo git clone https://github.com/Jani-shiv/Symbiosis-Heckathon.git /tmp/site
+
+# Move website files
+sudo mv /tmp/site/* /var/www/html/
+
+# Fix permissions
+sudo chown -R www-data:www-data /var/www/html
+sudo chmod -R 755 /var/www/html
+
+sudo systemctl enable apache2
 sudo systemctl restart apache2
 "@
 
+# ---------------- OUTPUT PUBLIC IP ----------------
+$ip = (Get-AzPublicIpAddress -ResourceGroupName $rg -Name $ipName).IpAddress
+
+Write-Host "==========================================="
 Write-Host "✅ VM CREATED & WEBSITE DEPLOYED SUCCESSFULLY"
+Write-Host "🌍 Open this in browser:"
+Write-Host "http://$ip"
+Write-Host "==========================================="
