@@ -1,18 +1,28 @@
-# LOGIN FIRST
+# ==============================
+# LOGIN
+# ==============================
 Connect-AzAccount
 
+# ==============================
 # VARIABLES
+# ==============================
 $resourceGroup = "Symbiosis-RG"
-$location = "CentralIndia"
-$vmName = "symbiosis-vm"
-$vmSize = "Standard_B1s"
-$adminUser = "azureuser"
-$repoUrl = "https://github.com/Jani-shiv/Symbiosis-Heckathon.git"
+$location      = "CentralIndia"
+$vmName        = "symbiosis-vm"
+$vmSize        = "Standard_B1s"
+$repoUrl       = "https://github.com/Jani-shiv/Symbiosis-Heckathon.git"
 
+# ==============================
 # RESOURCE GROUP
-New-AzResourceGroup -Name $resourceGroup -Location $location -Force
+# ==============================
+New-AzResourceGroup `
+  -Name $resourceGroup `
+  -Location $location `
+  -Force
 
+# ==============================
 # VNET + SUBNET
+# ==============================
 $vnet = New-AzVirtualNetwork `
   -ResourceGroupName $resourceGroup `
   -Location $location `
@@ -26,11 +36,13 @@ Add-AzVirtualNetworkSubnetConfig `
 
 $vnet | Set-AzVirtualNetwork
 
-# 🔴 IMPORTANT FIX: RELOAD VNET
-$vnet = Get-AzVirtualNetwork -Name "symbiosis-vnet" -ResourceGroupName $resourceGroup
+# Reload VNET (IMPORTANT)
+$vnet     = Get-AzVirtualNetwork -Name "symbiosis-vnet" -ResourceGroupName $resourceGroup
 $subnetId = $vnet.Subnets[0].Id
 
-# NSG
+# ==============================
+# NSG (SSH + HTTP)
+# ==============================
 $nsg = New-AzNetworkSecurityGroup `
   -ResourceGroupName $resourceGroup `
   -Location $location `
@@ -58,14 +70,19 @@ $nsg | Add-AzNetworkSecurityRuleConfig `
 
 $nsg | Set-AzNetworkSecurityGroup
 
+# ==============================
 # PUBLIC IP
+# ==============================
 $publicIp = New-AzPublicIpAddress `
   -ResourceGroupName $resourceGroup `
   -Location $location `
   -Name "symbiosis-ip" `
-  -AllocationMethod Static
+  -AllocationMethod Static `
+  -Sku Basic
 
-# NIC (FIXED)
+# ==============================
+# NIC
+# ==============================
 $nic = New-AzNetworkInterface `
   -ResourceGroupName $resourceGroup `
   -Location $location `
@@ -74,10 +91,14 @@ $nic = New-AzNetworkInterface `
   -NetworkSecurityGroupId $nsg.Id `
   -PublicIpAddressId $publicIp.Id
 
+# ==============================
 # VM CONFIG
+# ==============================
 $cred = Get-Credential -Message "Enter VM username & password"
 
-$vmConfig = New-AzVMConfig -VMName $vmName -VMSize $vmSize
+$vmConfig = New-AzVMConfig `
+  -VMName $vmName `
+  -VMSize $vmSize
 
 $vmConfig = Set-AzVMOperatingSystem `
   -VM $vmConfig `
@@ -86,7 +107,7 @@ $vmConfig = Set-AzVMOperatingSystem `
   -Credential $cred `
   -DisablePasswordAuthentication:$false
 
-# 🔴 IMAGE FIX (Ubuntu 22.04 VALID)
+# Ubuntu 22.04 (Region-safe image)
 $vmConfig = Set-AzVMSourceImage `
   -VM $vmConfig `
   -PublisherName "Canonical" `
@@ -94,15 +115,26 @@ $vmConfig = Set-AzVMSourceImage `
   -Skus "22_04-lts" `
   -Version "latest"
 
-$vmConfig = Add-AzVMNetworkInterface -VM $vmConfig -Id $nic.Id
+# 🔴 IMPORTANT: Disable Trusted Launch
+$vmConfig.SecurityProfile = @{
+    SecurityType = "Standard"
+}
 
+$vmConfig = Add-AzVMNetworkInterface `
+  -VM $vmConfig `
+  -Id $nic.Id
+
+# ==============================
 # CREATE VM
+# ==============================
 New-AzVM `
   -ResourceGroupName $resourceGroup `
   -Location $location `
   -VM $vmConfig
 
-# DEPLOY WEBSITE
+# ==============================
+# INSTALL NGINX + DEPLOY WEBSITE
+# ==============================
 $script = @"
 sudo apt update -y
 sudo apt install nginx git -y
