@@ -1,160 +1,118 @@
-# =========================
-# LOGIN
-# =========================
+# Login (skip if already logged in)
 Connect-AzAccount
 
-# =========================
+# ========================
 # VARIABLES
-# =========================
-$rg        = "Symbiosis-RG"
-$location  = "CentralIndia"
-$vmName    = "symbiosis-vm"
-$vmSize    = "Standard_B1s"
-$vnetName  = "symbiosis-vnet"
-$subnetName= "symbiosis-subnet"
-$nsgName   = "symbiosis-nsg"
-$nicName   = "symbiosis-nic"
-$ipName    = "symbiosis-ip"
-$repoUrl   = "https://github.com/Jani-shiv/Symbiosis-Heckathon.git"
+# ========================
+$rgName = "Symbiosis-RG"
+$location = "CentralIndia"
+$vmName = "symbiosis-vm"
+$vmSize = "Standard_B1s"
+$adminUser = "azureuser"
+$sshKeyPath = "$HOME/.ssh/id_rsa.pub"
 
-# =========================
+$repoUrl = "https://github.com/Jani-shiv/Symbiosis-Heckathon.git"
+
+# ========================
 # RESOURCE GROUP
-# =========================
-if (-not (Get-AzResourceGroup -Name $rg -ErrorAction SilentlyContinue)) {
-    New-AzResourceGroup -Name $rg -Location $location
-}
+# ========================
+New-AzResourceGroup -Name $rgName -Location $location
 
-# =========================
-# VNET + SUBNET (REUSE SAFE)
-# =========================
-$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+# ========================
+# NETWORK
+# ========================
+$vnet = New-AzVirtualNetwork `
+  -ResourceGroupName $rgName `
+  -Location $location `
+  -Name "symbiosis-vnet" `
+  -AddressPrefix "10.0.0.0/16"
 
-if (-not $vnet) {
-    $vnet = New-AzVirtualNetwork `
-        -Name $vnetName `
-        -ResourceGroupName $rg `
-        -Location $location `
-        -AddressPrefix "10.0.0.0/16"
+$subnet = Add-AzVirtualNetworkSubnetConfig `
+  -Name "symbiosis-subnet" `
+  -AddressPrefix "10.0.1.0/24" `
+  -VirtualNetwork $vnet
 
-    Add-AzVirtualNetworkSubnetConfig `
-        -Name $subnetName `
-        -AddressPrefix "10.0.1.0/24" `
-        -VirtualNetwork $vnet | Set-AzVirtualNetwork
-}
+$vnet | Set-AzVirtualNetwork
 
-$vnet = Get-AzVirtualNetwork -Name $vnetName -ResourceGroupName $rg
-$subnetId = $vnet.Subnets[0].Id
+$nsg = New-AzNetworkSecurityGroup `
+  -ResourceGroupName $rgName `
+  -Location $location `
+  -Name "symbiosis-nsg"
 
-# =========================
-# NSG (REUSE SAFE)
-# =========================
-$nsg = Get-AzNetworkSecurityGroup -Name $nsgName -ResourceGroupName $rg -ErrorAction SilentlyContinue
+$nsg | Add-AzNetworkSecurityRuleConfig `
+  -Name "Allow-HTTP" `
+  -Protocol Tcp `
+  -Direction Inbound `
+  -Priority 1000 `
+  -SourceAddressPrefix * `
+  -SourcePortRange * `
+  -DestinationAddressPrefix * `
+  -DestinationPortRange 80 `
+  -Access Allow
 
-if (-not $nsg) {
-    $nsg = New-AzNetworkSecurityGroup `
-        -Name $nsgName `
-        -ResourceGroupName $rg `
-        -Location $location
+$nsg | Set-AzNetworkSecurityGroup
 
-    $nsg | Add-AzNetworkSecurityRuleConfig `
-        -Name "Allow-SSH" `
-        -Protocol Tcp `
-        -Direction Inbound `
-        -Priority 1000 `
-        -SourceAddressPrefix "*" `
-        -SourcePortRange "*" `
-        -DestinationAddressPrefix "*" `
-        -DestinationPortRange 22 `
-        -Access Allow
+$publicIp = New-AzPublicIpAddress `
+  -ResourceGroupName $rgName `
+  -Location $location `
+  -Name "symbiosis-ip" `
+  -AllocationMethod Static
 
-    $nsg | Add-AzNetworkSecurityRuleConfig `
-        -Name "Allow-HTTP" `
-        -Protocol Tcp `
-        -Direction Inbound `
-        -Priority 1010 `
-        -SourceAddressPrefix "*" `
-        -SourcePortRange "*" `
-        -DestinationAddressPrefix "*" `
-        -DestinationPortRange 80 `
-        -Access Allow
+$nic = New-AzNetworkInterface `
+  -ResourceGroupName $rgName `
+  -Location $location `
+  -Name "symbiosis-nic" `
+  -SubnetId $vnet.Subnets[0].Id `
+  -PublicIpAddressId $publicIp.Id `
+  -NetworkSecurityGroupId $nsg.Id
 
-    $nsg | Set-AzNetworkSecurityGroup
-}
-
-# =========================
-# PUBLIC IP (REUSE SAFE)
-# =========================
-$publicIp = Get-AzPublicIpAddress -Name $ipName -ResourceGroupName $rg -ErrorAction SilentlyContinue
-
-if (-not $publicIp) {
-    $publicIp = New-AzPublicIpAddress `
-        -Name $ipName `
-        -ResourceGroupName $rg `
-        -Location $location `
-        -AllocationMethod Static
-}
-
-# =========================
-# NIC (REUSE SAFE)
-# =========================
-$nic = Get-AzNetworkInterface -Name $nicName -ResourceGroupName $rg -ErrorAction SilentlyContinue
-
-if (-not $nic) {
-    $nic = New-AzNetworkInterface `
-        -Name $nicName `
-        -ResourceGroupName $rg `
-        -Location $location `
-        -SubnetId $subnetId `
-        -NetworkSecurityGroupId $nsg.Id `
-        -PublicIpAddressId $publicIp.Id
-}
-
-# =========================
-# VM (CREATE ONLY IF MISSING)
-# =========================
-$vm = Get-AzVM -Name $vmName -ResourceGroupName $rg -ErrorAction SilentlyContinue
-
-if (-not $vm) {
-
-    $cred = Get-Credential -Message "Enter VM username & password"
-
-    $vmConfig = New-AzVMConfig -VMName $vmName -VMSize $vmSize
-
-    $vmConfig = Set-AzVMOperatingSystem `
-        -VM $vmConfig `
-        -Linux `
-        -ComputerName $vmName `
-        -Credential $cred `
-        -DisablePasswordAuthentication:$false
-
-    $vmConfig = Set-AzVMSourceImage `
-        -VM $vmConfig `
-        -PublisherName "Canonical" `
-        -Offer "0001-com-ubuntu-server-jammy" `
-        -Skus "22_04-lts" `
-        -Version "latest"
-
-    # 🔥 NO SecurityProfile AT ALL (fixes Trusted Launch error)
-    $vmConfig = Add-AzVMNetworkInterface -VM $vmConfig -Id $nic.Id
-
-    New-AzVM `
-        -ResourceGroupName $rg `
-        -Location $location `
-        -VM $vmConfig
-}
-
-# =========================
-# DEPLOY WEBSITE
-# =========================
-Invoke-AzVMRunCommand `
-  -ResourceGroupName $rg `
+# ========================
+# VM CONFIGURATION
+# ========================
+$vmConfig = New-AzVMConfig `
   -VMName $vmName `
-  -CommandId "RunShellScript" `
-  -ScriptString @"
+  -VMSize $vmSize
+
+$vmConfig = Set-AzVMOperatingSystem `
+  -VM $vmConfig `
+  -Linux `
+  -ComputerName $vmName `
+  -Credential (Get-Credential -UserName $adminUser -Message "Enter VM password")
+
+$vmConfig = Set-AzVMSourceImage `
+  -VM $vmConfig `
+  -PublisherName "Canonical" `
+  -Offer "0001-com-ubuntu-server-jammy" `
+  -Skus "22_04-lts" `
+  -Version "latest"
+
+$vmConfig = Add-AzVMNetworkInterface `
+  -VM $vmConfig `
+  -Id $nic.Id
+
+# ========================
+# CREATE VM
+# ========================
+New-AzVM `
+  -ResourceGroupName $rgName `
+  -Location $location `
+  -VM $vmConfig
+
+# ========================
+# INSTALL & DEPLOY WEBSITE
+# ========================
+$script = @"
 sudo apt update -y
-sudo apt install nginx git -y
+sudo apt install -y nginx git
 sudo rm -rf /var/www/html/*
 sudo git clone $repoUrl /var/www/html
-sudo chown -R www-data:www-data /var/www/html
 sudo systemctl restart nginx
 "@
+
+Invoke-AzVMRunCommand `
+  -ResourceGroupName $rgName `
+  -VMName $vmName `
+  -CommandId "RunShellScript" `
+  -ScriptString $script
+
+Write-Host "✅ Deployment Complete!"
